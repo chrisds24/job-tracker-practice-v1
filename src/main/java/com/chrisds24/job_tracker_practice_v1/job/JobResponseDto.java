@@ -1,4 +1,4 @@
-package com.chrisds24.job;
+package com.chrisds24.job_tracker_practice_v1.job;
 
 import java.time.Instant;
 import java.util.UUID;

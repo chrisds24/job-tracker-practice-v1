@@ -1,4 +1,4 @@
-package com.chrisds24.job;
+package com.chrisds24.job_tracker_practice_v1.job;
 
 // NOTE: We have a JobRequestDto instead of just a JobResponseDto for
 //   everything since what a user is allowed to send is usually different
