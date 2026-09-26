@@ -11,5 +11,7 @@ record JobResponseDto(
     String company,
     // TODO: Convert this to a more appropriate type
     Instant dateSaved,
-    String status
+    String status,
+    Integer salaryMin,
+    Integer salaryMax
 ) { }
