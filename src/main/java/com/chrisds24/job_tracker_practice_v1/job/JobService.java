@@ -16,7 +16,7 @@ public class JobService {
     }
 
     @Transactional(readOnly = true)
-    public List<JobResponseDto> getMultipleByUser(UUID memberId) {
+    public List<JobResponseDto> getJobs(UUID memberId) {
         // TODO: Call JPA 
     }
 }
