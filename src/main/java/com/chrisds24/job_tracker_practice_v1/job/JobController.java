@@ -113,24 +113,24 @@ public class JobController {
 
         // OPTION 2: Return a response without a body and has status 404 if job
         //   isn't found, or else return normally
-        if (job != null) {
-            return ResponseEntity
-                .status(HttpStatus.OK)
-                .body(job);
-        }
-
         // NOTE: The controller method still works even if we don't have a
         //   response body
+        if (job == null) {
+            return ResponseEntity
+                .status(HttpStatus.NOT_FOUND)
+                .build();
+        }
+
         return ResponseEntity
-            .status(HttpStatus.NOT_FOUND)
-            .build();
+            .status(HttpStatus.OK)
+            .body(job);
         
         // OPTION 3: (TODO) Switch to this later !!!
         // - Have a @RestControllerAdvice that can return error values
         // - So here, we're making the case where the job isn't found an
         //   exception.
-        //   -- Notice the contrast between finding multiple jobs and
-        //      returning an empty list not being an exception
+        //   -- Notice the contrast to finding multiple jobs, which
+        //      returns an empty list if no jobs are found
     }
 
     // We want to return the created job since it has details such as
@@ -149,9 +149,18 @@ public class JobController {
     public ResponseEntity<JobResponseDto> createJob(
         @Valid @RequestBody CreateJobRequestDto newJob
     ) {
+        // NOTE: memberId should come from the authenticated user in the
+        //   request, not sent by the client as part of the request body (which
+        //   a client could easily fake)
+        // - Using a fake id for now
+        // - NOTE: I won't add the fakeMemberId for the other operations for
+        //   for now since they can operate normally without adding a memberId,
+        //   meanwhile this one needs it
+        UUID fakeMemberId = UUID.fromString("1e76b303-5e77-463e-8bd6-c01ec8342164"); 
+
         return ResponseEntity
             .status(HttpStatus.CREATED)
-            .body(jobService.createJob(newJob));
+            .body(jobService.createJob(memberId, newJob));
     }
 
     // For simplicity, I won't be returning a response body since the frontend
@@ -163,7 +172,7 @@ public class JobController {
     //
     // There's no inherited repository method from JpaRepository to update a
     //   resource. We simply load the resource, then the flush automatically
-    //   executes an UPDATE query that doesn't return how many entities are
+    //   executes an UPDATE query that DOES NOT return how many entities are
     //   updated.
     // - If I wanted to return how many entities are updated, I'd need to use
     //   an explicit @Modifying query
@@ -176,21 +185,23 @@ public class JobController {
     ) {
         // OPTION 1: Have editJob return number of entities updated then
         //   return a response with 404 status if no job was found
+        // - NOTE: Need to use an explicit @Modifying query if I want to return
+        //   the number of entities updated
         // int updatedJobsCount = jobService.editJob(id, editJob);
-
         // if (updatedJobsCount == 0) {
         //     return ResponseEntity
         //         .status(HttpStatus.NOT_FOUND)
         //         .build();
         // }
 
-        jobService.editJob(id, editJob);
-
+        // OPTION 2: Have the service method return null if the job can't be
+        //   found. Then return the status code conditionally
+        JobResponseDto job = jobService.editJob(id, editJob);
         return ResponseEntity
-            .status(HttpStatus.NO_CONTENT)
+            .status((job != null) ? HttpStatus.NO_CONTENT: HttpStatus.NOT_FOUND)
             .build();
 
-        // OPTION 2: Have a @RestController advice which can handle
+        // OPTION 3: Have a @RestController advice which can handle
         //   a JobNotFoundException, which I throw from the service method
         //   if the repository method findById returns no job
         // - If the update error happens during/after flush (Ex. the job
@@ -200,12 +211,17 @@ public class JobController {
     }
 
     // The inherited repository deleteById method actually returns void.
+    // - Even if the job can't be found, it is counted as a success and no
+    //   exception is thrown.
+    //   -- However, an exception is still thrown if there's database
+    //      constraint issues, etc.
     // - Though, I can create a derived query that returns the number of
     //   entities deleted.
+    // - Otherwise, I need to use findById first, then call delete.
     //
-    // Again, just throw a JobNotFoundException in the service if findById
-    //   can't find the job. Then if the DELETE query later fails for whatever
-    //   reason, Hibernate deals with returning the appropriate exception 
+    // NOTE: Do I return a 404 and inform the user if the job is already
+    //   delete? OR is not doing so fine?
+    // - Both designs are valid
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteJob(
         @PathVariable UUID id
@@ -218,7 +234,6 @@ public class JobController {
             .build();
     }
 
-    // TODO: Add the validations in CreateJobRequestDto and EditJobRequestDto
 }
 
 // ********* NOTES **********

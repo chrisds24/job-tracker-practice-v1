@@ -9,7 +9,9 @@ record JobResponseDto(
     UUID memberId,
     String title,
     String company,
-    // TODO: Convert this to a more appropriate type
+    // When Jackson serializes the DTO to JSON, the Instant is represented
+    //   as an ISO-8601 timestamp so there's no need to manually convert it
+    //   to a String in that format
     Instant dateSaved,
     String status,
     Integer salaryMin,

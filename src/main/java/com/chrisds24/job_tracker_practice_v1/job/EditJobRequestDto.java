@@ -4,6 +4,8 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 
+// IMPORTANT: In my use case, null means changing the value to null
+// - Omitting the field means don't change it
 record EditJobRequestDto(
     @Size(max = 255)
     String title,

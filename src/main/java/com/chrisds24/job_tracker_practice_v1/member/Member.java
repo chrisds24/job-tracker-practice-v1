@@ -1,18 +1,13 @@
 package com.chrisds24.job_tracker_practice_v1.member;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.UUID;
 
 import org.hibernate.annotations.Generated;
 
-import com.chrisds24.job_tracker_practice_v1.job.Job;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
-import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 
 @Entity
@@ -51,6 +46,30 @@ public class Member {
     //     private List<Job> jobs;
     //
     // NOTE: @OneToMany is LAZY by default, but it's good to be explicit here
-    @OneToMany(fetch = FetchType.LAZY)
-    private List<Job> jobs = new ArrayList<>();
+    //
+    // Also, I don't need functionality such as member.getJobs(), so there's no
+    //   need to have this.
+    // @OneToMany(fetch = FetchType.LAZY)
+    // private List<Job> jobs = new ArrayList<>();
+
+    protected Member() {}
+
+    public Member(
+        String name,
+        String email,
+        String passwordHash
+    ) {
+        this.name = name;
+        this.email = email;
+        this.passwordHash = passwordHash;
+    }
+
+    public UUID getId() { return id; }
+    public String getName() { return name; }
+    public String getEmail() { return email; }
+    public String passwordHash() { return passwordHash; }
+
+    public void setName(String name) { this.name = name; }
+    public void setEmail(String email) { this.email = email; }
+    public void setPasswordHash(String passwordHash) { this.passwordHash = passwordHash; }
 }
