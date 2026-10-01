@@ -67,7 +67,7 @@ public class Member {
     public UUID getId() { return id; }
     public String getName() { return name; }
     public String getEmail() { return email; }
-    public String passwordHash() { return passwordHash; }
+    public String getPasswordHash() { return passwordHash; }
 
     public void setName(String name) { this.name = name; }
     public void setEmail(String email) { this.email = email; }
