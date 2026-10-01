@@ -12,6 +12,9 @@ import jakarta.validation.constraints.Size;
 //
 // https://jakarta.ee/learn/docs/jakartaee-tutorial/current/beanvalidation/bean-validation/bean-validation.html
 // - Source for Jakarta Bean Validation
+//
+// Custom Bean Validation can be used to ensure that salaryMin <= salaryMax
+//   when both are provided, but a method should suffice for now
 record CreateJobRequestDto(
     @NotBlank
     @Size(max = 255)

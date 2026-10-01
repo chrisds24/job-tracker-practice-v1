@@ -7,19 +7,20 @@ import java.util.UUID;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.PositiveOrZero;
+import jakarta.validation.constraints.Size;
 
 
 // @RestController: This class handles HTTP requests and returns a response body
@@ -51,7 +52,7 @@ public class JobController {
 
     // @GetMapping: This is a GET request
     //
-    // @RequestParam(name = "userId", required = false)
+    // @RequestParam(name = "memberId", required = false)
     // - By default, @RequestParam has required = true, so we're setting it to
     //   false since we don't want to require it
     // - name is simply just the name of the query param in the URL
@@ -66,11 +67,28 @@ public class JobController {
     // - NOTE: .body() finishes constructing a ResponseEntity with a body
     //   -- Without it or .build(), we only have a builder with the
     //      configurations we specified
+    //
+    // NOTE: There's also @ModelAttribute which allows us to put all filters
+    //   into one object.
+    // - However, this binds request parameters, form data, and path variables
+    //   to that object and there's no way to distinguish which one comes from
+    //   which.
+    // - If we care about making the source explicit, need to separate them at
+    //   the controller (Ex. Make path variables into @PathVariable in the
+    //   controller and leave)
+    // - I went with @RequestParam since it makes it explicit in code that the
+    //   params are query params and not path params, form data, etc.
     @GetMapping()
     public ResponseEntity<List<JobResponseDto>> getJobs(
-        @RequestParam(name = "userId", required = false) UUID userId,
-        @RequestParam(name = "title", required = false) String title,
-        @RequestParam(name = "company", required = false) String company,
+        @RequestParam(name = "memberId", required = false) UUID memberId,
+
+        @RequestParam(name = "title", required = false)
+        @Size(max = 255)
+        String title,
+
+        @RequestParam(name = "company", required = false)
+        @Size(max = 255)
+        String company,
 
         @RequestParam(name = "dateSavedFrom", required = false)
         @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
@@ -78,25 +96,39 @@ public class JobController {
 
         @RequestParam(name = "dateSavedTo", required = false)
         @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
-        Instant dateSavedTo
+        Instant dateSavedTo,
+
+        @RequestParam(name = "status", required = false)
+        String status,
+
+        @RequestParam(name = "salaryMin", required = false)
+        @PositiveOrZero
+        Integer salaryMin,
+
+        @RequestParam(name = "salaryMax", required = false)
+        @PositiveOrZero
+        Integer salaryMax
     ) {
+        // Constructor-style
+        // return new ResponseEntity(
+        //     jobService.getMultipleByUser(memberId),
+        //     200
+        // );
+
         // Builder-style
         // - Preferred since it's more readable
         return ResponseEntity
             .status(HttpStatus.OK)
             .body(jobService.getJobs(
-                userId,
+                memberId,
                 title,
                 company,
                 dateSavedFrom,
-                dateSavedTo
+                dateSavedTo,
+                status,
+                salaryMin,
+                salaryMax
             ));
-
-        // Constructor-style
-        // return new ResponseEntity(
-        //     jobService.getMultipleByUser(userId),
-        //     200
-        // );
     }
 
     @GetMapping("/{id}")
@@ -160,7 +192,7 @@ public class JobController {
 
         return ResponseEntity
             .status(HttpStatus.CREATED)
-            .body(jobService.createJob(memberId, newJob));
+            .body(jobService.createJob(fakeMemberId, newJob));
     }
 
     // For simplicity, I won't be returning a response body since the frontend
@@ -177,8 +209,11 @@ public class JobController {
     // - If I wanted to return how many entities are updated, I'd need to use
     //   an explicit @Modifying query
     //
-    // TODO: Edit this later to use PatchMapping
-    @PutMapping("/{id}")
+    // IMPORTANT: PUT vs PATCH
+    // - PATCH means only editing an existing resource's fields
+    // - PUT means replacing the full resource with something else, not just
+    //   editing the existing resource's fields
+    @PatchMapping("/{id}")
     public ResponseEntity<Void> editJob(
         @PathVariable UUID id,
         @Valid @RequestBody EditJobRequestDto editJob
@@ -210,15 +245,6 @@ public class JobController {
         //   -- For simplicity right now, I won't try to handle this myself
     }
 
-    // The inherited repository deleteById method actually returns void.
-    // - Even if the job can't be found, it is counted as a success and no
-    //   exception is thrown.
-    //   -- However, an exception is still thrown if there's database
-    //      constraint issues, etc.
-    // - Though, I can create a derived query that returns the number of
-    //   entities deleted.
-    // - Otherwise, I need to use findById first, then call delete.
-    //
     // NOTE: Do I return a 404 and inform the user if the job is already
     //   delete? OR is not doing so fine?
     // - Both designs are valid
@@ -267,17 +293,17 @@ public class JobController {
 //
 // Should GET /jobs only return current user's jobs since normal users should
 //   only be able to access their own jobs?
-// - After all, we should be getting the userId to filter by that user's jobs
-//   from the authenticated user instead of @RequestParam("userId") UUID userId
-//   since a malicious user can just edit the userId in the URL
+// - After all, we should be getting the memberId to filter by that user's jobs
+//   from the authenticated user instead of @RequestParam("memberId") UUID memberId
+//   since a malicious user can just edit the memberId in the URL
 //   -- We can get it from the authenticated user via:
 //      + OPTION 1: As a manually set request attribute in a Filter upon
 //        successful authentication, which we can then access in the controller
 //        later (via @RequestAttribute)
 //      + OPTION 2: From the authenticated principal when using Spring Security
-//   -- Even if we can just compare the query param userId to the one obtained
+//   -- Even if we can just compare the query param memberId to the one obtained
 //      from the authenticated user to deal with malicious requests, having a
-//      userId query param is redundant since our source of truth is still just
+//      memberId query param is redundant since our source of truth is still just
 //      the authenticated user
 // - Then, we can just have filters (Ex. by status, sort order, by city, etc.)
 //   as the query params
@@ -290,8 +316,8 @@ public class JobController {
 //      -- OPTION 2: Just have /jobs, but have different codepaths execute
 //         depending on if the user is a normal user or has admin authorization
 //         + Normal users can only access their jobs and the request could be
-//           rejected if they supply a userId query param
-//         + Meanwhile, admins aren't limited and can supply a userId
+//           rejected if they supply a memberId query param
+//         + Meanwhile, admins aren't limited and can supply a memberId
 //      -- Both options are RESTful
 //    
 // Throw an exception or return an error status code with no body?
@@ -373,4 +399,13 @@ public class JobController {
 //   calling the editResource method after existence is confirmed
 //   -- Also, consider the fact that just because the resource existed during
 //      getResource doesn't mean it still exists during editResource
+//
+// @ModelAttribute vs. @RequestParam
+// - @ModelAttribute allows us to put all filters into one object.
+// - However, this binds request parameters, form data, and path variables
+//   to that object and there's no way to distinguish which one comes from
+//   which.
+// - If we care about making the source explicit, need to separate them at
+//   the controller (Ex. Make path variables into @PathVariable in the
+//   controller and leave)
 
