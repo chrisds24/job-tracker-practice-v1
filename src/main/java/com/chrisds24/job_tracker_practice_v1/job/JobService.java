@@ -10,12 +10,19 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.chrisds24.job_tracker_practice_v1.member.MemberRepository;
+
 @Service 
 public class JobService {
     private final JobRepository jobRepository;
+    private final MemberRepository memberRepository;
 
-    public JobService(@Autowired JobRepository jobRepository) {
+    public JobService(
+        @Autowired JobRepository jobRepository,
+        @Autowired MemberRepository memberRepository
+    ) {
         this.jobRepository = jobRepository;
+        this.memberRepository = memberRepository;
     }
 
 
@@ -46,6 +53,13 @@ public class JobService {
         );
 
         List<JobResponseDto> jobResDtos = new ArrayList<>();
+        // No risk of N+1 query here since Job's member field is LAZY
+        //   and toResponseDto only gets the member's id, which doesn't
+        //   cause the member to be loaded
+        // - Another note: If all jobs belong to the same member.
+        //   Hibernate's persistence context allows that member to be loaded
+        //   once and then reused.
+        //   -- BUT DON'T rely purely on this just to avoid N+1 queries
         for (Job job : jobs) {
             jobResDtos.add(JobMapper.toResponseDto(job));
         }
@@ -67,20 +81,44 @@ public class JobService {
     ) {
         validateSalaryRange(newJob.salaryMin(), newJob.salaryMax());
 
-        // Look at CrudRepository documentation for save()
-        // NOTE: save doesn't return null upon persistence failure
+        // IMPORTANT: Since I'm representing the Job-Member relationship
+        //   in JPA via an @ManyToOne member field in Job, I'll need to
+        //   get the member so I can pass it to the Job constructor
+        // - In actuality, I don't really need the full member itself and I
+        //   only need a reference to it
+        // - Therefore, I can use getReferenceById which gives me a lazy
+        //   reference of the member
+        //   -- NOTE: I need to ensure that my authentication guarantees the
+        //      existence of this member, since if the member doesn't actually
+        //      exist, it can cause a foreign-key violation when the job is
+        //      inserted
+        //      + The reason for this is that getReferenceById() can still
+        //        return a Member reference even if that id doesn't actually
+        //        exist in the database
+        //        * And the reason behind this is that this method simply gives
+        //          us a reference to the entity with the provided id and DOES
+        //          NOT actually query the database to verify if the resource
+        //          exists
+        //   -- This provides the benefit of not needing a SELECT to get the
+        //      member
+        //
+        // Also, looking at CrudRepository documentation for save(), it
+        //   doesn't return null upon persistence failure
         // - Instead, an exception is thrown. Keep in mind that the exception
         //   could be thrown long after save since it could happen during flush
         //   instead
-        return JobMapper.toResponseDto(
-            jobRepository.save(JobMapper.toEntity(memberId, newJob))
-        );
+        return JobMapper.toResponseDto(jobRepository.save(JobMapper.toEntity(
+            memberRepository.getReferenceById(memberId), newJob
+        )));
     }
 
-    // TODO: Change to return void later, since it should instead throw an
-    //   exception when no job is found
+    // This method doesn't allow changing a job's associated member since
+    //   jobs only belong to one member upon creation
     //
     // NOTE: @Modifying belongs to modifying @Query methods, not service methods
+    //
+    // TODO: Change to return void later, since it should instead throw an
+    //   exception when no job is found
     @Transactional
     public JobResponseDto editJob(
         UUID id,
@@ -95,7 +133,6 @@ public class JobService {
         }
 
         Job job = optionalJob.get();
-
         if (editJob.title() != null) {
             job.setTitle(editJob.title());
         }
@@ -129,6 +166,8 @@ public class JobService {
     // The inherited repository deleteById method actually returns void.
     // - Even if the job can't be found, it is counted as a success and no
     //   exception is thrown.
+    //   -- This isn't a problem since the purpose of a delete is to simply
+    //      ensure that the resource is deleted
     //   -- However, an exception is still thrown if there's database
     //      constraint issues, etc.
     // - Though, I can create a derived query that returns the number of

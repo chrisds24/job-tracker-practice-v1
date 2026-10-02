@@ -1,6 +1,5 @@
 package com.chrisds24.job_tracker_practice_v1.job;
 
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;

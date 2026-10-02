@@ -3,6 +3,8 @@ package com.chrisds24.job_tracker_practice_v1.job;
 import java.time.Instant;
 import java.util.UUID;
 
+import com.chrisds24.job_tracker_practice_v1.member.Member;
+
 public class JobMapper {
     public static JobResponseDto toResponseDto(
         Job job
@@ -16,9 +18,18 @@ public class JobMapper {
         // String status,
         // Integer salaryMin,
         // Integer salaryMax
+        //
+        // IMPORTANT: Since the member field is LAZY, using
+        //   job.getMember().getId() here doesn't initialize the job's
+        //   member field
+        // - The reason is that Hibernate already knows the member's id from
+        //   the job's foreign key
+        // - HOWEVER, doing something like job.getMember().getName() does load
+        //   the member, which can cause N+1 queries when this mapping method
+        //   is used in a loop
         return new JobResponseDto(
             job.getId(),
-            job.getMemberId(),
+            job.getMember().getId(),
             job.getTitle(),
             job.getCompany(),
             job.getDateSaved(),
@@ -29,16 +40,16 @@ public class JobMapper {
     }
 
     public static Job toEntity(
-        UUID memberId,
+        Member member,
         CreateJobRequestDto newJob
     ) {
         return new Job(
-            memberId,
             newJob.title(),
             newJob.company(),
             newJob.status(),
             newJob.salaryMin(),
-            newJob.salaryMax()
+            newJob.salaryMax(),
+            member
         );
     }
 }
