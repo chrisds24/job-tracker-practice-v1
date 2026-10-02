@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import com.chrisds24.job_tracker_practice_v1.job.exception.InvalidSalaryRangeException;
 import com.chrisds24.job_tracker_practice_v1.job.exception.JobNotFoundException;
 import com.chrisds24.job_tracker_practice_v1.member.exception.EmailAlreadyExistsException;
+import com.chrisds24.job_tracker_practice_v1.member.exception.InvalidCredentialsException;
 import com.chrisds24.job_tracker_practice_v1.member.SignupResponseDto;
 
 @RestControllerAdvice 
@@ -67,6 +68,18 @@ public class GlobalExceptionHandler {
 
         return new SignupResponseDto(
             "If this email can be registered, you'll receive further instructions."
+        );
+    }
+
+    @ExceptionHandler(InvalidCredentialsException.class)
+    @ResponseStatus(HttpStatus.UNAUTHORIZED)
+    public ApiErrorResponse handleInvalidCredentials(
+        InvalidCredentialsException ex
+    ) {
+        return new ApiErrorResponse(
+            HttpStatus.UNAUTHORIZED.value(),
+            "INVALID_CREDENTIALS",
+            ex.getMessage()
         );
     }
 

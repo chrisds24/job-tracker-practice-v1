@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.chrisds24.job_tracker_practice_v1.member.exception.EmailAlreadyExistsException;
+import com.chrisds24.job_tracker_practice_v1.member.exception.InvalidCredentialsException;
 
 
 @Service
@@ -58,7 +59,9 @@ public class MemberService {
             optionalMember.get() :
             null;
         if (member == null) { // Member with email doesn't exist
-            return null; // Later, throw an exception instead
+            throw new InvalidCredentialsException(
+                "Invalid email or password"
+            );
         }
 
         // Then, hash the provided password and compare with the loaded
@@ -67,8 +70,11 @@ public class MemberService {
         //   at all in this case
         // - Normally, I can use BCrypt to hash and verify passwords
         String fakePasswordHash = credentials.password();
-        if (fakePasswordHash != member.getPasswordHash()) {
-            return null; // Again, throw an exception instead later
+        // Don't use == when comparing Strings
+        if (fakePasswordHash.equals(member.getPasswordHash())) {
+            throw new InvalidCredentialsException(
+                "Invalid email or password"
+            );
         }
 
         // Create the JWT then return it along with the member's details

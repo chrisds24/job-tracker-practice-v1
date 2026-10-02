@@ -46,21 +46,11 @@ public class MemberController {
         );
     }
 
+    // 200 is the standard for a successful login
     @PostMapping()
-    public ResponseEntity<LoginResponseDto> login(
+    public LoginResponseDto login(
         @RequestBody LoginRequestDto credentials
     ) {
-        LoginResponseDto memberWithJwt = memberService.login(credentials);
-        // This is the case when invalid credentials are provided
-        // - Just return 401 Unauthorized
-        if (memberWithJwt == null) {
-            return ResponseEntity
-                .status(HttpStatus.UNAUTHORIZED)
-                .build();
-        }
-
-        return ResponseEntity
-            .status(HttpStatus.OK)
-            .body(memberWithJwt);
+        return memberService.login(credentials);
     }
 }
