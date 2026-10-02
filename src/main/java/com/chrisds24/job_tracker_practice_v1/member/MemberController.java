@@ -35,6 +35,17 @@ public class MemberController {
     public ResponseEntity<LoginResponseDto> login(
         @RequestBody LoginRequestDto credentials
     ) {
-        
+        LoginResponseDto memberWithJwt = memberService.login(credentials);
+        // This is the case when invalid credentials are provided
+        // - Just return 401 Unauthorized
+        if (memberWithJwt == null) {
+            return ResponseEntity
+                .status(HttpStatus.UNAUTHORIZED)
+                .build();
+        }
+
+        return ResponseEntity
+            .status(HttpStatus.OK)
+            .body(memberWithJwt);
     }
 }

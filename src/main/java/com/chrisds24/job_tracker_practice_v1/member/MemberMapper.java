@@ -12,4 +12,24 @@ public class MemberMapper {
             passwordHash
         );
     }
+
+    public static MemberResponseDto toMemberResponseDto(
+        Member member
+    ) {
+        return new MemberResponseDto(
+            member.getId(),
+            member.getName(),
+            member.getEmail()
+        );
+    }
+
+    public static LoginResponseDto toLoginResponseDto(
+        String jwt,
+        Member member
+    ) {
+        return new LoginResponseDto(
+            jwt,
+            toMemberResponseDto(member)
+        );
+    }
 }
