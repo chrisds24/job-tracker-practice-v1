@@ -11,3 +11,18 @@ public class JobTrackerPracticeV1Application {
 	}
 
 }
+
+// Folder Organization
+// - Package by layer
+//     controller/
+//     service/
+//     repository/
+//
+// - Package by feature
+//     job/
+//     member/
+//     auth/
+//
+// Package-by-layer is very easy to understand and is common in
+//   tutorials/smaller Spring projects. Package-by-feature can become easier
+//   to navigate as an application grows

@@ -7,7 +7,6 @@ import java.util.UUID;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -16,6 +15,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
@@ -57,18 +57,8 @@ public class JobController {
     //   false since we don't want to require it
     // - name is simply just the name of the query param in the URL
     //
-    // The dateSavedFrom and dateSavedTo query params receive a UTC timestamp
-    //   as an ISO-8601 string. @DateTimeFormat tells Spring how to parse the
-    //   ISO-8601 string
-    // - Alternative: Have the types be String, then manually Instant.parse()
-    //
-    // ResponseEntity lets the controller explicitly control the HTTP status,
-    //   headers, and response body
-    // - NOTE: .body() finishes constructing a ResponseEntity with a body
-    //   -- Without it or .build(), we only have a builder with the
-    //      configurations we specified
-    //
-    // NOTE: There's also @ModelAttribute which allows us to put all filters
+    // ALTERNATIVE to @RequestParam:
+    // - There's also @ModelAttribute which allows us to put all filters
     //   into one object.
     // - However, this binds request parameters, form data, and path variables
     //   to that object and there's no way to distinguish which one comes from
@@ -78,8 +68,28 @@ public class JobController {
     //   controller and leave)
     // - I went with @RequestParam since it makes it explicit in code that the
     //   params are query params and not path params, form data, etc.
+    //
+    // The dateSavedFrom and dateSavedTo query params receive a UTC timestamp
+    //   as an ISO-8601 string. @DateTimeFormat tells Spring how to parse the
+    //   ISO-8601 string
+    // - Alternative: Have the types be String, then manually Instant.parse()
+    //
+    // Type T with @ResponseStatus
+    // - Not having @ResponseStatus is implicitly 200 OK
+    // - Basically, just return the type T you want to return (Ex. job) then
+    //   set the success response in @ResponseStatus
+    // - This is preferrable if there's a global exception handler that handles
+    //   returning errors and setting the appropriate error codes
+    //
+    // ALTERNATIVE to type T with @ResponseStatus
+    // - ResponseEntity<T> lets the controller explicitly control the
+    //   HTTP status, headers, and response body
+    // - NOTE: .body() finishes constructing a ResponseEntity with a body
+    //   -- Without it or .build(), we only have a builder with the
+    //      configurations we specified
     @GetMapping()
-    public ResponseEntity<List<JobResponseDto>> getJobs(
+    // public ResponseEntity<List<JobResponseDto>> getJobs(
+    public List<JobResponseDto> getJobs(
         @RequestParam(name = "memberId", required = false) UUID memberId,
 
         @RequestParam(name = "title", required = false)
@@ -109,34 +119,46 @@ public class JobController {
         @PositiveOrZero
         Integer salaryMax
     ) {
+        // ----------- ResponseEntity<T> ------------
         // Constructor-style
         // return new ResponseEntity(
         //     jobService.getMultipleByUser(memberId),
         //     200
         // );
+        //
+        // Builder-style: Preferred since it's more readable
+        // return ResponseEntity
+        //     .status(HttpStatus.OK)
+        //     .body(jobService.getJobs(
+        //         memberId,
+        //         title,
+        //         company,
+        //         dateSavedFrom,
+        //         dateSavedTo,
+        //         status,
+        //         salaryMin,
+        //         salaryMax
+        //     ));
 
-        // Builder-style
-        // - Preferred since it's more readable
-        return ResponseEntity
-            .status(HttpStatus.OK)
-            .body(jobService.getJobs(
-                memberId,
-                title,
-                company,
-                dateSavedFrom,
-                dateSavedTo,
-                status,
-                salaryMin,
-                salaryMax
-            ));
+        return jobService.getJobs(
+            memberId,
+            title,
+            company,
+            dateSavedFrom,
+            dateSavedTo,
+            status,
+            salaryMin,
+            salaryMax
+        );
     }
 
+    // NOTE: If we didn't have a @RestControllerAdvice to handle exceptions,
+    //   we'll need to use ResponseEntity here so we can change the return
+    //   body and the status code for the case when the job can't be found
     @GetMapping("/{id}")
-    public ResponseEntity<JobResponseDto> getJob(
+    public JobResponseDto getJob(
         @PathVariable UUID id
     ) {
-        JobResponseDto job = jobService.getJob(id);
-
         // OPTION 1: Return a null body with 404 Not Found status if job is
         //   not found
         // return ResponseEntity
@@ -144,25 +166,23 @@ public class JobController {
         //     .body(job);
 
         // OPTION 2: Return a response without a body and has status 404 if job
-        //   isn't found, or else return normally
-        // NOTE: The controller method still works even if we don't have a
+        //   isn't found (Better than OPTION 1)
+        // NOTICE: The controller method still works even if we don't have a
         //   response body
-        if (job == null) {
-            return ResponseEntity
-                .status(HttpStatus.NOT_FOUND)
-                .build();
-        }
-
-        return ResponseEntity
-            .status(HttpStatus.OK)
-            .body(job);
+        // if (job == null) {
+        //     return ResponseEntity
+        //         .status(HttpStatus.NOT_FOUND)
+        //         .build();
+        // }
         
-        // OPTION 3: (TODO) Switch to this later !!!
-        // - Have a @RestControllerAdvice that can return error values
-        // - So here, we're making the case where the job isn't found an
-        //   exception.
+        // OPTION 3: Return the job here on success, then have a
+        //   @RestControllerAdvice that can return error values
+        //   (BEST OPTION)
+        // - So with this option, we're making the case where the job isn't
+        //   found an exception.
         //   -- Notice the contrast to finding multiple jobs, which
         //      returns an empty list if no jobs are found
+        return jobService.getJob(id);
     }
 
     // We want to return the created job since it has details such as
@@ -176,9 +196,10 @@ public class JobController {
     // ***** IMPORTANT:
     // - Notice the lack of a "if (job != null)" condition. Here, there
     //   typically would be some kind of error that happened if the job wasn't
-    //   successfully created, so that error should throw an execption instead
+    //   successfully created, so that error should throw an exception instead
     @PostMapping()
-    public ResponseEntity<JobResponseDto> createJob(
+    @ResponseStatus(HttpStatus.CREATED)
+    public JobResponseDto createJob(
         @Valid @RequestBody CreateJobRequestDto newJob
     ) {
         // NOTE: memberId should come from the authenticated user in the
@@ -190,9 +211,7 @@ public class JobController {
         //   meanwhile this one needs it
         UUID fakeMemberId = UUID.fromString("1e76b303-5e77-463e-8bd6-c01ec8342164"); 
 
-        return ResponseEntity
-            .status(HttpStatus.CREATED)
-            .body(jobService.createJob(fakeMemberId, newJob));
+        return jobService.createJob(fakeMemberId, newJob);
     }
 
     // For simplicity, I won't be returning a response body since the frontend
@@ -214,7 +233,8 @@ public class JobController {
     // - PUT means replacing the full resource with something else, not just
     //   editing the existing resource's fields
     @PatchMapping("/{id}")
-    public ResponseEntity<Void> editJob(
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void editJob(
         @PathVariable UUID id,
         @Valid @RequestBody EditJobRequestDto editJob
     ) {
@@ -222,42 +242,39 @@ public class JobController {
         //   return a response with 404 status if no job was found
         // - NOTE: Need to use an explicit @Modifying query if I want to return
         //   the number of entities updated
-        // int updatedJobsCount = jobService.editJob(id, editJob);
-        // if (updatedJobsCount == 0) {
-        //     return ResponseEntity
-        //         .status(HttpStatus.NOT_FOUND)
-        //         .build();
-        // }
 
         // OPTION 2: Have the service method return null if the job can't be
         //   found. Then return the status code conditionally
-        JobResponseDto job = jobService.editJob(id, editJob);
-        return ResponseEntity
-            .status((job != null) ? HttpStatus.NO_CONTENT: HttpStatus.NOT_FOUND)
-            .build();
+        // - Simpler than OPTION 1
+        // - Once again, using ResponseEntity is needed if I don't have
+        //   a global exception handler to set error status codes
+        //   -- I can use ResponseEntity<Void> when there's no body
+        // JobResponseDto job = jobService.editJob(id, editJob);
+        // return ResponseEntity
+        //     .status((job != null) ? HttpStatus.NO_CONTENT: HttpStatus.NOT_FOUND)
+        //     .build();
 
         // OPTION 3: Have a @RestController advice which can handle
         //   a JobNotFoundException, which I throw from the service method
         //   if the repository method findById returns no job
+        //   (BEST OPTION)
         // - If the update error happens during/after flush (Ex. the job
         //   gets deleted before this transaction commits), then Hibernate
         //   will throw an exception.
-        //   -- For simplicity right now, I won't try to handle this myself
+        jobService.editJob(id, editJob);
     }
 
     // NOTE: Do I return a 404 and inform the user if the job is already
     //   delete? OR is not doing so fine?
-    // - Both designs are valid
+    // - Both designs are valid, it just depends if the business use case
+    //   cares about informing the user. After all, the end goal of a delete
+    //   operation is to simply delete the resource
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteJob(
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteJob(
         @PathVariable UUID id
     ) {
-
         jobService.deleteJob(id);
-
-        return ResponseEntity
-            .status(HttpStatus.NO_CONTENT)
-            .build();
     }
 
 }

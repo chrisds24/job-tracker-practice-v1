@@ -10,6 +10,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.chrisds24.job_tracker_practice_v1.job.exception.InvalidSalaryRangeException;
+import com.chrisds24.job_tracker_practice_v1.job.exception.JobNotFoundException;
 import com.chrisds24.job_tracker_practice_v1.member.MemberRepository;
 
 @Service 
@@ -41,6 +43,13 @@ public class JobService {
     ) {
         validateSalaryRange(salaryMin, salaryMax);
 
+        // IMPORTANT: Exception Handling
+        // - If no jobs are returned (empty list), that is not an exception
+        // - Also, if something goes wrong in the query executed by findJobs,
+        //   that is an unexpected database error, network error, etc., so a
+        //   fallback handler returning 500 status is appropriate for this case
+        // - Basically, there is no need to wrap every repository method call
+        //   with try-catch just to deal with database errors
         List<Job> jobs = jobRepository.findJobs(
             memberId,
             title,
@@ -69,9 +78,12 @@ public class JobService {
     @Transactional(readOnly = true)
     public JobResponseDto getJob(UUID id) {
         Optional<Job> job = jobRepository.findById(id);
-        // TODO: Throw an exception that a global exception handler can
-        //   handle instead
-        return job.isEmpty() ? null : JobMapper.toResponseDto(job.get());
+        if (job.isEmpty()) {
+            throw new JobNotFoundException(
+                "Job with id " + id + " not found."
+            );
+        }
+        return JobMapper.toResponseDto(job.get());
     }
 
     @Transactional
@@ -107,20 +119,43 @@ public class JobService {
         // - Instead, an exception is thrown. Keep in mind that the exception
         //   could be thrown long after save since it could happen during flush
         //   instead
-        return JobMapper.toResponseDto(jobRepository.save(JobMapper.toEntity(
-            memberRepository.getReferenceById(memberId), newJob
-        )));
+        return JobMapper.toResponseDto(
+            jobRepository.save(
+                JobMapper.toEntity(
+                    memberRepository.getReferenceById(memberId), newJob
+                )
+            )
+        );
+
+        // IMPORTANT: Exception handling
+        // - If save fails, an exception is thrown
+        // - But since errors caused by save are usually unexpected such as
+        //   SQL errors, network errors, etc., it's fine to just let the
+        //   fallback exception handler handle it
+        // - Also, the SQL execution happens outside of save and after it, so
+        //   wrapping save with a try-catch is not helpful in this case
+        // - NOTE: As mentioned above, performing the SQL using a non-existent
+        //   memberId is a foreign key violation. However, since we expect the
+        //   authentication to do its job properly and ensure that the memberId
+        //   here actually exists, then a non-existent memberId here can be
+        //   treated as an "unexpected" case and its sensible to just leave it
+        //   to the fallback handler even though it's a foreign key violation
+        //   (which can either be a 409 or 422 error status)
     }
 
     // This method doesn't allow changing a job's associated member since
     //   jobs only belong to one member upon creation
     //
-    // NOTE: @Modifying belongs to modifying @Query methods, not service methods
+    // There's no inherited repository method from JpaRepository to update a
+    //   resource. We simply load the resource, then the flush automatically
+    //   executes an UPDATE query that DOESN'T return how many entities are
+    //   updated. (Even save() doesn't return the number of entities)
+    // - If I wanted to return how many entities are updated, I'd need to use
+    //   an explicit @Modifying query
     //
-    // TODO: Change to return void later, since it should instead throw an
-    //   exception when no job is found
+    // NOTE: @Modifying belongs to modifying @Query methods, not service methods
     @Transactional
-    public JobResponseDto editJob(
+    public void editJob(
         UUID id,
         EditJobRequestDto editJob
     ) {
@@ -129,7 +164,7 @@ public class JobService {
 
         Optional<Job> optionalJob = jobRepository.findById(id);
         if (optionalJob.isEmpty()) {
-            // TODO: Throw an exception
+            throw new JobNotFoundException("Job not found");
         }
 
         Job job = optionalJob.get();
@@ -156,11 +191,19 @@ public class JobService {
 
         // Dirty-checking ensures that the job is updated in the database
         //   without explicitly calling save and/or flush
-        // Since job is already persisted, there is no need to save just to
-        //   return the entity returned by save
-        return JobMapper.toResponseDto(
-            jobRepository.save(job)
-        );
+        // - NOTE: If returning the job to the controller:
+        //   -- Since job is already persisted, there is no need to save just
+        //      to get the entity returned by save. I can just convert job
+        //      itself to the DTO representation
+
+        // IMPORTANT: Exception handling
+        // - Since the the flush happens automatically some time after the
+        //   method body has finished, how should I handle exceptions caused
+        //   by SQL errors, network errors, etc.?
+        //   -- SOLUTION: Just have the fallback handler handle it. There, I
+        //      can log the original cause then just send something like
+        //      "Unexpected error" in the error message being sent to the
+        //      client. A 500 status code works fine for this case
     }
 
     // The inherited repository deleteById method actually returns void.
@@ -170,14 +213,20 @@ public class JobService {
     //      ensure that the resource is deleted
     //   -- However, an exception is still thrown if there's database
     //      constraint issues, etc.
-    // - Though, I can create a derived query that returns the number of
-    //   entities deleted.
+    // If I need the number of jobs deleted:
+    // - I can create a derived query that returns the number of entities
+    //   deleted.
     // - Otherwise, I need to use findById first, then call delete.
     @Transactional
     public void deleteJob(
         UUID id
     ) {
         jobRepository.deleteById(id);
+
+        // IMPORTANT: Exception handling
+        // - I'm just letting the fallback exception handler deal with
+        //   exceptions that happen here since those exceptions
+        //   are unexpected unlike something like JobNotFoundException
     }
 
     private void validateSalaryRange(
@@ -187,7 +236,7 @@ public class JobService {
         // Only validate range when both are present
         if (salaryMin != null && salaryMax != null) {
             if (salaryMin > salaryMax) {
-                // throw an exception
+                throw new InvalidSalaryRangeException("Salary min > salary max");
             }
         }
     }

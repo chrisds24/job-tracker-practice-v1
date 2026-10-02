@@ -6,6 +6,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.chrisds24.job_tracker_practice_v1.member.exception.EmailAlreadyExistsException;
+
 
 @Service
 public class MemberService {
@@ -20,11 +22,20 @@ public class MemberService {
     @Transactional
     public void signup(SignupRequestDto newUser) {
         // First, ensure that email isn't taken
+        //
         // IMPORTANT: DO NOT return a Conflict status code that states the
         //   email has already been taken. That is a security risk
+        //
+        // NOTE: Even though successful signup and an email already exists
+        //   exception return the same response body and status code, I want
+        //   to handle it in the exception handler to keep things consistent
+        //   since this is an exception use case here
+        //
         // if (memberRepository.findByEmail(newUser.email()).isPresent()) {
         if (memberRepository.existsByEmail(newUser.email())) {
-            // throw exception
+            throw new EmailAlreadyExistsException(
+                "Provided email is already in use by another user."
+            );
         }
 
         // Doesn't really hash. Use for now and maybe add Bcrypt later

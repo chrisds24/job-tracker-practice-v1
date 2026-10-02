@@ -15,6 +15,9 @@ import jakarta.validation.constraints.Size;
 //
 // Custom Bean Validation can be used to ensure that salaryMin <= salaryMax
 //   when both are provided, but a method should suffice for now
+//
+// A MethodArgumentNotValidException will be thrown when a validation error
+//   happens, so I can just catch it in my global exception handler
 record CreateJobRequestDto(
     @NotBlank
     @Size(max = 255)
