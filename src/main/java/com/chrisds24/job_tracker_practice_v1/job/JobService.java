@@ -10,6 +10,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.chrisds24.job_tracker_practice_v1.job.dto.CreateJobRequestDto;
+import com.chrisds24.job_tracker_practice_v1.job.dto.EditJobRequestDto;
+import com.chrisds24.job_tracker_practice_v1.job.dto.JobResponseDto;
 import com.chrisds24.job_tracker_practice_v1.job.exception.InvalidSalaryRangeException;
 import com.chrisds24.job_tracker_practice_v1.job.exception.JobNotFoundException;
 import com.chrisds24.job_tracker_practice_v1.member.MemberRepository;

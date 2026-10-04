@@ -18,6 +18,10 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.chrisds24.job_tracker_practice_v1.job.dto.CreateJobRequestDto;
+import com.chrisds24.job_tracker_practice_v1.job.dto.EditJobRequestDto;
+import com.chrisds24.job_tracker_practice_v1.job.dto.JobResponseDto;
+
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;

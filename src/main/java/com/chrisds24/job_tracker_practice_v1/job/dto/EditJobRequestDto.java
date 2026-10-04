@@ -1,4 +1,4 @@
-package com.chrisds24.job_tracker_practice_v1.job;
+package com.chrisds24.job_tracker_practice_v1.job.dto;
 
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.PositiveOrZero;
@@ -16,7 +16,7 @@ import jakarta.validation.constraints.Size;
 // - But for something like salaryMin, 0 doesn't mean empty. So the strategy
 //   above doesn't work
 // - NOTE: Look into JsonNullable as a solution to this
-record EditJobRequestDto(
+public record EditJobRequestDto(
     // We want to be able to have this field null.
     //
     // However, when it's supplied, it can't be an empty string

@@ -1,10 +1,10 @@
-package com.chrisds24.job_tracker_practice_v1.job;
+package com.chrisds24.job_tracker_practice_v1.job.dto;
 
 import java.time.Instant;
 import java.util.UUID;
 
 // https://docs.oracle.com/en/java/javase/17/language/records.html
-record JobResponseDto(
+public record JobResponseDto(
     UUID id,
     UUID memberId,
     String title,

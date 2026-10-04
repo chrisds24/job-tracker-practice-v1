@@ -1,10 +1,10 @@
-package com.chrisds24.job_tracker_practice_v1.member;
+package com.chrisds24.job_tracker_practice_v1.auth.dto;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
-record SignupRequestDto(
+public record SignupRequestDto(
     @NotBlank
     String name,
 

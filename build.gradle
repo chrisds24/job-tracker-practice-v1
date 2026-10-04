@@ -17,10 +17,16 @@ repositories {
 	mavenCentral()
 }
 
+// The equivalent of "npm install" here is "./gradlew build", but the
+//   Java/Gradle extensions in VS Code can automatically detect this
+//   and ask to download them. Ex:
+//     "A build file was modified. Do you want to synchronize the Java
+//      classpath/configuration?"
 dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
 	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+    implementation 'org.springframework.boot:spring-boot-starter-security'
 	runtimeOnly 'org.postgresql:postgresql'
 	testImplementation 'org.springframework.boot:spring-boot-starter-data-jpa-test'
 	testImplementation 'org.springframework.boot:spring-boot-starter-validation-test'

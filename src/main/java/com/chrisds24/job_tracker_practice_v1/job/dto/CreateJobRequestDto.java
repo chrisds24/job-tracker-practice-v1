@@ -1,4 +1,4 @@
-package com.chrisds24.job_tracker_practice_v1.job;
+package com.chrisds24.job_tracker_practice_v1.job.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.PositiveOrZero;
@@ -18,7 +18,7 @@ import jakarta.validation.constraints.Size;
 //
 // A MethodArgumentNotValidException will be thrown when a validation error
 //   happens, so I can just catch it in my global exception handler
-record CreateJobRequestDto(
+public record CreateJobRequestDto(
     @NotBlank
     @Size(max = 255)
     String title,

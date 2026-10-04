@@ -1,8 +1,7 @@
 package com.chrisds24.job_tracker_practice_v1.job;
 
-import java.time.Instant;
-import java.util.UUID;
-
+import com.chrisds24.job_tracker_practice_v1.job.dto.CreateJobRequestDto;
+import com.chrisds24.job_tracker_practice_v1.job.dto.JobResponseDto;
 import com.chrisds24.job_tracker_practice_v1.member.Member;
 
 public class JobMapper {

@@ -6,11 +6,11 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import com.chrisds24.job_tracker_practice_v1.auth.dto.SignupResponseDto;
+import com.chrisds24.job_tracker_practice_v1.auth.exception.EmailAlreadyExistsException;
+import com.chrisds24.job_tracker_practice_v1.auth.exception.InvalidCredentialsException;
 import com.chrisds24.job_tracker_practice_v1.job.exception.InvalidSalaryRangeException;
 import com.chrisds24.job_tracker_practice_v1.job.exception.JobNotFoundException;
-import com.chrisds24.job_tracker_practice_v1.member.exception.EmailAlreadyExistsException;
-import com.chrisds24.job_tracker_practice_v1.member.exception.InvalidCredentialsException;
-import com.chrisds24.job_tracker_practice_v1.member.SignupResponseDto;
 
 @RestControllerAdvice 
 public class GlobalExceptionHandler {
