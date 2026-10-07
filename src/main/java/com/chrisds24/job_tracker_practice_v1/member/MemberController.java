@@ -15,4 +15,6 @@ public class MemberController {
     ) {
         this.memberService = memberService;
     }
+
+    // NOTE: Login and signup features are moved to auth folder
 }

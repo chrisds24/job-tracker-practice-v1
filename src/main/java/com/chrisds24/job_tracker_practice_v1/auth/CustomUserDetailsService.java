@@ -11,8 +11,9 @@ import org.springframework.stereotype.Service;
 import com.chrisds24.job_tracker_practice_v1.member.Member;
 import com.chrisds24.job_tracker_practice_v1.member.MemberRepository;
 
-// CustomUserDetailsService implementation that returns a custom UserDetails
-//   object that also contains a member
+// This is a custom UserDetailsService implementation so that
+//   loadUserByUsername returns a custom UserDetails object (MemberUserDetails)
+//   that also contains a member
 @Service 
 public class CustomUserDetailsService implements UserDetailsService {
 
@@ -28,8 +29,9 @@ public class CustomUserDetailsService implements UserDetailsService {
     // Basically, we just want this function to return a UserDetails object
     //   if the member can be found. Otherwise, it needs to throw
     //   a UsernameNotFoundException
-    // So basically, it's just a way to load a Member and convert it to a
-    //   UserDetails object
+    // The interface has a "throws UsernameNotFoundException", but this
+    //   exception is unchecked so there's no need to write it here as long as
+    //   the method throws the exception when the user isn't found
     @Override 
     public UserDetails loadUserByUsername(String username) {
         Optional<Member> optionalMember = memberRepository.findByEmail(

@@ -1,6 +1,7 @@
 package com.chrisds24.job_tracker_practice_v1.common.exception;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -71,6 +72,8 @@ public class GlobalExceptionHandler {
         );
     }
 
+    // TODO: May not need this
+    // - Use handleAuthenticationException instead
     @ExceptionHandler(InvalidCredentialsException.class)
     @ResponseStatus(HttpStatus.UNAUTHORIZED)
     public ApiErrorResponse handleInvalidCredentials(
@@ -80,6 +83,21 @@ public class GlobalExceptionHandler {
             HttpStatus.UNAUTHORIZED.value(),
             "INVALID_CREDENTIALS",
             ex.getMessage()
+        );
+    }
+
+    // Use this instead of handleInvalidCredentials
+    // - This also handles other Spring Security auth failures such as
+    //   UsernameNotFoundException and BadCredentialsException
+    @ExceptionHandler(AuthenticationException.class)
+    @ResponseStatus(HttpStatus.UNAUTHORIZED)
+    public ApiErrorResponse handleAuthenticationException(
+        AuthenticationException ex
+    ) {
+        return new ApiErrorResponse(
+            HttpStatus.UNAUTHORIZED.value(),
+            "INVALID_CREDENTIALS",
+            "Invalid email or password"
         );
     }
 

@@ -14,17 +14,20 @@ import org.springframework.transaction.annotation.RollbackOn;
 @EnableTransactionManagement(rollbackOn=RollbackOn.ALL_EXCEPTIONS)
 // - To rollback on all exceptions, not just runtime
 public class SecurityConfig {
+    // NOTE: Refer to login in AuthService.java for an explanation of where
+    //   passwordEncoder and authenticationManager are used
+
     // Use the interface type PasswordEncoder instead of BCryptPasswordEncoder
     //   as the return value. If we later changed the implementation to a
     //   a different encoder, then our services that use it won't need to
     //   change.
     @Bean
     // public BCryptPasswordEncoder bCryptPasswordEncoder() {
-    public PasswordEncoder PasswordEncoder() {
+    public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
 
-    // Login method in AuthService uses this
+    // Login method in AuthService uses the authenticate method from this
     @Bean
     public AuthenticationManager authenticationManager(
         AuthenticationConfiguration configuration

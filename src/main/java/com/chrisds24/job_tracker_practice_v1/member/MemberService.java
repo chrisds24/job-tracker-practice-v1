@@ -13,4 +13,6 @@ public class MemberService {
     ) {
         this.memberRepository = memberRepository;
     }
+
+    // NOTE: Login and signup features are moved to auth folder
 }
