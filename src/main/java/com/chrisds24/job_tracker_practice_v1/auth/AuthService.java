@@ -60,54 +60,7 @@ public class AuthService {
         ));
     }
 
-    // Here, we use AuthenticationManager's authenticate method to
-    //   authenticate based on the provided email (acts as username) and
-    //   password
-    // - If successful, we get back an Authentication object which contains
-    //   the UserDetails object as the principal
-    // - From that UserDetails object (actually a custom implementation we
-    //   created called MemberUserDetails, which has a member), we obtain
-    //   the member
-    // - Then from the member, we simply use its details to create the JWT
-    //   then create the LoginResponseDto to send back to the client
-    //
-    // Source for authenticating with an AuthenticationManager:
-    // - https://docs.spring.io/spring-security/reference/servlet/authentication/passwords/index.html
-    // - Regarding DaoAuthenticationProvider:
-    //   -- https://docs.spring.io/spring-security/reference/servlet/authentication/passwords/dao-authentication-provider.html?utm_source=chatgpt.com
-    //      + This one shows the flow of how a username and password gets used
-    // 
-    // More/longer explanations:
-    // - AuthenticationManager's authenticate method accepts an Authentication
-    //   -- UsernamePasswordAuthenticationToken is one implementation of
-    //      Authentication used to represent a username-and-password-based
-    //      authentication object
-    //      --  This is why we can use Authentication as the type of the
-    //          return value
-    // - A UsernamePasswordAuthenticationToken type is used to represent both
-    //   an unauthenticated and authenticated instance
-    //   -- Passing an unauthenticated instance to AuthenticationManager's
-    //      authenticate method authenticates it if successful
-    //   -- NOTE: The word "Token" is confusing here, since it's not really
-    //      a token like a JWT
-    // - AuthenticationManager is actually an interface and ProviderManager is
-    //   an implementation of it.
-    //   -- ProviderManager chooses an AuthenticationProvider that knows
-    //      how to authenticate the given authentication
-    //   -- DaoAuthenticationProvider is one implementation of
-    //      AuthenticationProvider used to authenticate
-    //      username-and-password-based credentials stored in your own database
-    //   -- NOTE: Remember how Marco Behler states that we need to provide an
-    //      AuthenticationProvider bean such as AtlassianCrowdAuthenticationProvider
-    //      when using a third-party identity management service instead of
-    //      storing user's auth details in our own database?
-    //      -- In the case of a DaoAuthenticationProvider, Spring Security
-    //         can actually configure one for us so there's no need to write a
-    //         bean for this ourselves
-    // - DaoAuthenticationProvider uses your UserDetailsService implementation
-    //   to load the UserDetails, then uses your PasswordEncoder to
-    //   validate the password, then on success returns an authenticated
-    //   UsernamePasswordAuthenticationToken whose principal is the UserDetails
+    // SEE EXPLANATION BELOW
     @Transactional
     public LoginResponseDto login(LoginRequestDto credentials) {
         // Authenticate with AuthenticationManager
@@ -173,7 +126,14 @@ public class AuthService {
 
 
 /*
-********* EXPLANATIONS ***********
+------------------------------ LOGIN EXPLANATION ----------------------------
+
+Source for authenticating with an AuthenticationManager:
+- https://docs.spring.io/spring-security/reference/servlet/authentication/passwords/index.html
+- Regarding DaoAuthenticationProvider:
+    -- https://docs.spring.io/spring-security/reference/servlet/authentication/passwords/dao-authentication-provider.html?utm_source=chatgpt.com
+        + This one shows the flow of how a username and password gets used
+
 AuthenticationManager
     Authentication
     AuthenticationManager's authenticate method
@@ -237,6 +197,10 @@ Authentication.getPrincipal()
 - The AuthenticationProvider implementation used to authenticate
   username/password-based Authentication where your users' username/passwords
   are stored in your database
+  -- Spring Security can actually configure one for us so there's no need to
+     write a bean for this ourselves, unlike with a third-party provider
+     (Ex. AtlassianAuthenticationProvider) where we need to create bean and
+     write the implementation ourselves
 - It uses a UserDetailsService to load the user then uses the PasswordEncoder
   to compare the stored password hash with the supplied password
   -- UserDetailsService is a Spring Security interface used to load a user's
@@ -287,5 +251,4 @@ Authentication.getPrincipal()
   -- NOTE: Before authentication, the principal is the username for a
      UsernamePasswordAuthenticationToken
      + So in my case, it's the email
-
 */

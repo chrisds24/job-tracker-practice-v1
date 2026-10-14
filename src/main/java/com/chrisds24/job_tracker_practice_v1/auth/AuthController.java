@@ -36,7 +36,7 @@ public class AuthController {
     //   can be registered
     // - NOTE: The normal status code for creating a resource is 201 Created,
     //   which I'm not using here for the reason mentioned above
-    @PostMapping()
+    @PostMapping("/signup")
     // @ResponseStatus(HttpStatus.CREATED)
     @ResponseStatus(HttpStatus.ACCEPTED)
     // public void signup(
@@ -51,9 +51,9 @@ public class AuthController {
     }
 
     // 200 is the standard for a successful login
-    @PostMapping()
+    @PostMapping("/login")
     public LoginResponseDto login(
-        @RequestBody LoginRequestDto credentials
+        @Valid @RequestBody LoginRequestDto credentials
     ) {
         return authService.login(credentials);
     }
