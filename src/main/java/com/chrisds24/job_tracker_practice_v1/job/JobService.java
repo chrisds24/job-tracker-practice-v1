@@ -7,6 +7,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,7 +18,18 @@ import com.chrisds24.job_tracker_practice_v1.job.exception.InvalidSalaryRangeExc
 import com.chrisds24.job_tracker_practice_v1.job.exception.JobNotFoundException;
 import com.chrisds24.job_tracker_practice_v1.member.MemberRepository;
 
-@Service 
+@Service
+// @PreAuthorize("hasRole('USER')") means that this method should only be
+//   invoked if the authentication principal has the role USER
+// - Putting method security annotations on service methods is preferrable
+//   over controller methods since this protects the business operation
+//   itself and can't be bypassed if the developer accidentally calls
+//   it outside of an annotated controller
+// - NOTE: I'm actually putting the annotation at the class level here
+//   since all methods require the role USER
+//   -- Then for admin specific methods, I can just override this one with a
+//      method-level PreAuthorize.
+@PreAuthorize("hasRole('USER')")
 public class JobService {
     private final JobRepository jobRepository;
     private final MemberRepository memberRepository;
@@ -34,7 +46,7 @@ public class JobService {
     // @Transactional(readOnly = true) is used to optimize database
     //   transactions that only retrieve data
     @Transactional(readOnly = true)
-    public List<JobResponseDto> getJobs(
+    public List<JobResponseDto> getJobsForMember(
         UUID memberId,
         String title,
         String company,
@@ -53,7 +65,7 @@ public class JobService {
         //   fallback handler returning 500 status is appropriate for this case
         // - Basically, there is no need to wrap every repository method call
         //   with try-catch just to deal with database errors
-        List<Job> jobs = jobRepository.findJobs(
+        List<Job> jobs = jobRepository.findJobsForMember(
             memberId,
             title,
             company,
@@ -79,8 +91,12 @@ public class JobService {
     }
 
     @Transactional(readOnly = true)
-    public JobResponseDto getJob(UUID id) {
-        Optional<Job> job = jobRepository.findById(id);
+    public JobResponseDto getJobForMember(
+        UUID id,
+        UUID memberId
+    ) {
+        // NOTICE how the method isn't called "findByIdAndMemberId"
+        Optional<Job> job = jobRepository.findByIdAndMember_Id(id, memberId);
         if (job.isEmpty()) {
             throw new JobNotFoundException(
                 "Job with id " + id + " not found."
@@ -90,7 +106,7 @@ public class JobService {
     }
 
     @Transactional
-    public JobResponseDto createJob(
+    public JobResponseDto createJobForMember(
         UUID memberId,
         CreateJobRequestDto newJob
     ) {
@@ -158,14 +174,15 @@ public class JobService {
     //
     // NOTE: @Modifying belongs to modifying @Query methods, not service methods
     @Transactional
-    public void editJob(
+    public void editJobForMember(
         UUID id,
+        UUID memberId,
         EditJobRequestDto editJob
     ) {
         // First, validate the salary range provided by the user
         validateSalaryRange(editJob.salaryMin(), editJob.salaryMax());
 
-        Optional<Job> optionalJob = jobRepository.findById(id);
+        Optional<Job> optionalJob = jobRepository.findByIdAndMember_Id(id, memberId);
         if (optionalJob.isEmpty()) {
             throw new JobNotFoundException("Job not found");
         }
@@ -220,16 +237,29 @@ public class JobService {
     // - I can create a derived query that returns the number of entities
     //   deleted.
     // - Otherwise, I need to use findById first, then call delete.
+    //
+    // I updated it to use deleteByIdAndMember_Id, but I'll keep the behavior
+    //   where I don't care if a job is deleted or not
     @Transactional
-    public void deleteJob(
-        UUID id
+    public void deleteJobForMember(
+        UUID id,
+        UUID memberId
     ) {
-        jobRepository.deleteById(id);
+        // jobRepository.deleteById(id);
+        jobRepository.deleteByIdAndMember_Id(id, memberId);
 
         // IMPORTANT: Exception handling
         // - I'm just letting the fallback exception handler deal with
         //   exceptions that happen here since those exceptions
         //   are unexpected unlike something like JobNotFoundException
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    public void adminOnlyOperation() {
+        // This does not do anything. This is only here to demonstrate a
+        //   method-level PreAuthorize.
+        // - IMPORTANT: This overrides the class-level PreAuthorize instead
+        //   of being combine with it
     }
 
     private void validateSalaryRange(

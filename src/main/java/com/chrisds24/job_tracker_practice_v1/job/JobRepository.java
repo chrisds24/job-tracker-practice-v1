@@ -2,6 +2,7 @@ package com.chrisds24.job_tracker_practice_v1.job;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -50,11 +51,14 @@ public interface JobRepository extends JpaRepository<Job, UUID> {
     //   -- The conversion happens anyway, so we can just do it as part of
     //      application code
     //
+    // Notice how repository method names don't need to follow Spring Data's
+    //   derived-query naming conventions when you provide an explicit @Query
+    //
     // TODO: Don't forget to use Sort, Page, Pageable, etc. later
     @Query("""
         SELECT j
         FROM Job j
-        WHERE (:memberId IS NULL OR j.memberId = :memberId)
+        WHERE j.member.id = :memberId
             AND (:title IS NULL OR j.title = :title)
             AND (:company IS NULL OR j.company = :company)
             AND (:dateSavedFrom IS NULL OR j.dateSaved >= :dateSavedFrom)
@@ -63,7 +67,7 @@ public interface JobRepository extends JpaRepository<Job, UUID> {
             AND (:salaryMin IS NULL OR j.salaryMin >= :salaryMin)
             AND (:salaryMax IS NULL OR j.salaryMax <= :salaryMax)
     """)
-    List<Job> findJobs(
+    List<Job> findJobsForMember(
         @Param("memberId") UUID memberId,
         @Param("title") String title,
         @Param("company") String company,
@@ -73,4 +77,15 @@ public interface JobRepository extends JpaRepository<Job, UUID> {
         @Param("salaryMin") Integer salaryMin,
         @Param("salaryMax") Integer salaryMax
     );
+
+    // Since my Job entity has a @ManyToOne relationship with Member, use
+    //   this method name instead of findByIdAndMemberId
+    // Again, even though the actual job table has a memberId field, my entity
+    //   doesn't and instead relies on accessing the job's member field and
+    //   then accessing that member's id field:    job.member.id
+    // - Spring Data JPA can actually interpret MemberId in findByIdAndMemberId
+    //   as member.id as long as the Job entity doesn't have a memberId field
+    Optional<Job> findByIdAndMember_Id(UUID id, UUID memberId);
+
+    long deleteByIdAndMember_Id(UUID id, UUID memberId);
 }

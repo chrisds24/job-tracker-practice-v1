@@ -1,9 +1,11 @@
 package com.chrisds24.job_tracker_practice_v1.auth;
 
+import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
+import java.util.List;
 
 import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
 import com.chrisds24.job_tracker_practice_v1.member.Member;
@@ -43,14 +45,28 @@ public class MemberUserDetails implements UserDetails {
         return member.getPasswordHash();
     }
 
-    // UserDetails requires me to implement getAuthorities (which Marco Behler
-    //   doesn't show). Keeping it simple for now and just returning an
-    //   empty list
+    // API: https://docs.spring.io/spring-security/site/docs/current/api/org/springframework/security/core/userdetails/UserDetails.html#getAuthorities()
     //
-    // TODO: Fix this later after adding authorization
+    // NOTE: Marco Behler doesn't show a getAuthorities method in his tutorial
+    // - HOWEVER, he shows that the authorities need to be a list of
+    //   SimpleGrantedAuthority
+    //
+    // SimpleGrantedAuthority is simply a class that Spring Security uses
+    //   to represent String authorities
+    //
+    // REMEMBER: Add the ROLE_ prefix here, since something like
+    //   .requestMatchers("/admin/**").hasRole("ADMIN") requires the ROLE_
+    //   prefix
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        return Collections.emptyList();
+        List<String> roles = member.getRoles();
+        List<SimpleGrantedAuthority> grantedAuthorities = new ArrayList<>();
+
+        for (String role: roles) {
+            grantedAuthorities.add(new SimpleGrantedAuthority("ROLE_" + role));
+        }
+
+        return grantedAuthorities;
     }
 }
 

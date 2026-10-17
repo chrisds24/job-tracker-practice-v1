@@ -1,11 +1,19 @@
 package com.chrisds24.job_tracker_practice_v1.auth;
 
-import java.util.Optional;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
+import org.springframework.security.oauth2.jwt.JwsHeader;
+import org.springframework.security.oauth2.jwt.JwtClaimsSet;
+import org.springframework.security.oauth2.jwt.JwtEncoder;
+import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -13,7 +21,6 @@ import com.chrisds24.job_tracker_practice_v1.auth.dto.LoginRequestDto;
 import com.chrisds24.job_tracker_practice_v1.auth.dto.LoginResponseDto;
 import com.chrisds24.job_tracker_practice_v1.auth.dto.SignupRequestDto;
 import com.chrisds24.job_tracker_practice_v1.auth.exception.EmailAlreadyExistsException;
-import com.chrisds24.job_tracker_practice_v1.auth.exception.InvalidCredentialsException;
 import com.chrisds24.job_tracker_practice_v1.member.Member;
 import com.chrisds24.job_tracker_practice_v1.member.MemberMapper;
 import com.chrisds24.job_tracker_practice_v1.member.MemberRepository;
@@ -22,13 +29,16 @@ import com.chrisds24.job_tracker_practice_v1.member.MemberRepository;
 public class AuthService {
     private final MemberRepository memberRepository;
     private final AuthenticationManager authenticationManager;
+    private final JwtEncoder jwtEncoder;
 
     public AuthService(
         @Autowired MemberRepository memberRepository,
-        @Autowired AuthenticationManager authenticationManager
+        @Autowired AuthenticationManager authenticationManager,
+        @Autowired JwtEncoder jwtEncoder
     ) {
         this.memberRepository = memberRepository;
         this.authenticationManager = authenticationManager;
+        this.jwtEncoder = jwtEncoder;
     }
 
     @Transactional
@@ -50,13 +60,15 @@ public class AuthService {
             );
         }
 
-        // TODO: Use the BCryptPasswordEncoder bean later
+        // TODO: Use the PasswordEncoder bean later
         String fakePasswordHash = newUser.password();
 
+        // By default, all members have a USER role
         memberRepository.save(MemberMapper.toEntity(
             newUser.name(),
             newUser.email(),
-            fakePasswordHash
+            fakePasswordHash,
+            new ArrayList<>(List.of("USER"))
         ));
     }
 
@@ -73,17 +85,76 @@ public class AuthService {
         );
 
         // Get the member from the principal
+        // - Notice how the MemberUserDetails object is the authentication
+        //   principal here
+        // - Compare this to authenticating a request with a JWT in its
+        //   authorization header, where the authentication principal ends up
+        //   being a Jwt object
+        //   -- NOTE: There, the Authentication object is a
+        //      JwtAuthenticationToken and that Authentication's principal is
+        //      a Jwt object
         Member member =
             ((MemberUserDetails) authentication.getPrincipal())
                 .getMember();
 
+        // --------------- Generating a JWT ---------------
         // Create the JWT then return it along with the member's details
-        // TODO: I probably want more info included in the JWT other than just
-        //   id and email
-        String jwt = jwtService.generateToken(
-            member.getId(),
-            member.getEmail()
-        );
+        //
+        // A typical signed JWT (JWS) has three parts:
+        //     header.payload.signature
+        // - The payload is Base64URL-encoded, so anyone who possesses the
+        //   token can decode it and read its contents without knowing your
+        //   signing key
+        //   -- The signature prevents someone from modifying the token
+        //      without detection, but it doesn't hide the information
+        //   -- Therefore, don't include email
+        //   -- Again, I also won't be including iss (issuer)
+        //
+        // Ex.
+        // {
+        //     "sub": "550e8400-e29b-41d4-a716-446655440000",
+        //     "roles": ["USER", "ADMIN"],
+        //     "iat": 1791972000,
+        //     "exp": 1791975600
+        // }
+
+
+        // First, create the JWT claims
+        // https://docs.spring.io/spring-security/reference/servlet/oauth2/resource-server/dpop-tokens.html
+        // - Source for using JwtClaimsSet.builder() to generate a JWT
+        //   -- NOTE: This example is specifically for generating a DPoP Proof JWT
+        //   -- Also has JwsHeader and JwtEncoderParameters usage
+        // https://docs.spring.io/spring-security/reference/api/java/org/springframework/security/oauth2/jwt/JwtClaimsSet.Builder.html
+        // - JwtClaimsSet
+        Instant now = Instant.now();
+        JwtClaimsSet claims = JwtClaimsSet.builder()
+            // .issuer("qu1cksave-backend")
+            .subject(member.getId().toString())
+            .issuedAt(now)
+            .expiresAt(now.plus(Duration.ofHours(1)))
+            .claim("roles", member.getRoles())
+            .build();
+
+        // Specify HMAC-SHA256 (HS256) as the signing algorithm
+        // https://docs.spring.io/spring-security/reference/api/java/org/springframework/security/oauth2/jwt/JwsHeader.html
+        JwsHeader jwsHeader = JwsHeader.with(MacAlgorithm.HS256)
+            .build();
+        
+        // Encode the JWT
+        // https://docs.spring.io/spring-security/reference/api/java/org/springframework/security/oauth2/jwt/JwtEncoder.html
+        // - JwtEncoder API
+        // https://docs.spring.io/spring-security/reference/api/java/org/springframework/security/oauth2/jwt/NimbusJwtEncoder.html
+        // - NimbusJwtEncoder API
+        // https://docs.spring.io/spring-security/reference/api/java/org/springframework/security/oauth2/jwt/JwtEncoderParameters.html
+        // - JwtEncoderParameters API
+        // https://docs.spring.io/spring-security/reference/api/java/org/springframework/security/oauth2/jwt/Jwt.html
+        // - Jwt API
+        // https://docs.spring.io/spring-security/reference/api/java/org/springframework/security/oauth2/core/AbstractOAuth2Token.html#method-summary
+        // - getTokenValue is inherited by Jwt from AbstractOAuth2Token
+        String jwt = jwtEncoder.encode(
+            JwtEncoderParameters.from(jwsHeader, claims)
+        ).getTokenValue();
+
         return MemberMapper.toLoginResponseDto(jwt, member);
     }   
 

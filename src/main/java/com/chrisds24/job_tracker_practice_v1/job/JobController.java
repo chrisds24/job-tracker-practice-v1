@@ -7,6 +7,8 @@ import java.util.UUID;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -36,7 +38,7 @@ import jakarta.validation.constraints.Size;
 //   resource can only be singular, which is why we use /jobs instead of /job
 //   unlike in a database table (which prefers singular names)
 @RestController
-@RequestMapping("/job")
+@RequestMapping("/jobs")
 public class JobController {
 
     private final JobService jobService;
@@ -91,11 +93,32 @@ public class JobController {
     // - NOTE: .body() finishes constructing a ResponseEntity with a body
     //   -- Without it or .build(), we only have a builder with the
     //      configurations we specified
+    //
+    // @AuthenticationPrincipal
+    // - Remember how the BearerTokenAuthenticationFilter puts the
+    //   authenticated Authentication (a JwtAuthenticationToken) into the
+    //   SecurityContextHolder? The principal is a Jwt object and this is one
+    //   way to access it.
+    // - Since I used the member's id as the subject, I can just get the
+    //   Jwt's subject to get the authenticated member's id
+    //
+    // NOTE: This getJobs method isn't exactly correct since specifying
+    //   filters such as filtering by title isn't normally done using
+    //   an exact match, but this should suffice for now
+    //
+    // Regarding method naming:
+    // - Keep this as getJobs
+    // - Then have the service method it calls be getJobsForMember
+    // - If there's now an admin getJobs, it will belong in a different
+    //   controller (such as an AdminJobController)
+    // - getJobsForMember makes sense at the service layer since
+    //   both normal and admin endpoints can use that same JobService
+    //   class, so there'll be a getJobs method that admins can use
+    //   which doesn't restrict the jobs returned to be only those of
+    //   the authenticated user
     @GetMapping()
     // public ResponseEntity<List<JobResponseDto>> getJobs(
     public List<JobResponseDto> getJobs(
-        @RequestParam(name = "memberId", required = false) UUID memberId,
-
         @RequestParam(name = "title", required = false)
         @Size(max = 255)
         String title,
@@ -121,7 +144,9 @@ public class JobController {
 
         @RequestParam(name = "salaryMax", required = false)
         @PositiveOrZero
-        Integer salaryMax
+        Integer salaryMax,
+
+        @AuthenticationPrincipal Jwt jwt
     ) {
         // ----------- ResponseEntity<T> ------------
         // Constructor-style
@@ -144,7 +169,11 @@ public class JobController {
         //         salaryMax
         //     ));
 
-        return jobService.getJobs(
+        UUID memberId = UUID.fromString(
+            jwt.getSubject()
+        );
+
+        return jobService.getJobsForMember(
             memberId,
             title,
             company,
@@ -161,7 +190,8 @@ public class JobController {
     //   body and the status code for the case when the job can't be found
     @GetMapping("/{id}")
     public JobResponseDto getJob(
-        @PathVariable UUID id
+        @PathVariable UUID id,
+        @AuthenticationPrincipal Jwt jwt
     ) {
         // OPTION 1: Return a null body with 404 Not Found status if job is
         //   not found
@@ -186,7 +216,10 @@ public class JobController {
         //   found an exception.
         //   -- Notice the contrast to finding multiple jobs, which
         //      returns an empty list if no jobs are found
-        return jobService.getJob(id);
+        UUID memberId = UUID.fromString(
+            jwt.getSubject()
+        );
+        return jobService.getJobForMember(id, memberId);
     }
 
     // We want to return the created job since it has details such as
@@ -204,7 +237,8 @@ public class JobController {
     @PostMapping()
     @ResponseStatus(HttpStatus.CREATED)
     public JobResponseDto createJob(
-        @Valid @RequestBody CreateJobRequestDto newJob
+        @Valid @RequestBody CreateJobRequestDto newJob,
+        @AuthenticationPrincipal Jwt jwt
     ) {
         // NOTE: memberId should come from the authenticated user in the
         //   request, not sent by the client as part of the request body (which
@@ -213,9 +247,10 @@ public class JobController {
         // - NOTE: I won't add the fakeMemberId for the other operations for
         //   for now since they can operate normally without adding a memberId,
         //   meanwhile this one needs it
-        UUID fakeMemberId = UUID.fromString("1e76b303-5e77-463e-8bd6-c01ec8342164"); 
-
-        return jobService.createJob(fakeMemberId, newJob);
+        UUID memberId = UUID.fromString(
+            jwt.getSubject()
+        );
+        return jobService.createJobForMember(memberId, newJob);
     }
 
     // For simplicity, I won't be returning a response body since the frontend
@@ -240,7 +275,8 @@ public class JobController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void editJob(
         @PathVariable UUID id,
-        @Valid @RequestBody EditJobRequestDto editJob
+        @Valid @RequestBody EditJobRequestDto editJob,
+        @AuthenticationPrincipal Jwt jwt
     ) {
         // OPTION 1: Have editJob return number of entities updated then
         //   return a response with 404 status if no job was found
@@ -265,7 +301,10 @@ public class JobController {
         // - If the update error happens during/after flush (Ex. the job
         //   gets deleted before this transaction commits), then Hibernate
         //   will throw an exception.
-        jobService.editJob(id, editJob);
+        UUID memberId = UUID.fromString(
+            jwt.getSubject()
+        );
+        jobService.editJobForMember(id, memberId, editJob);
     }
 
     // NOTE: Do I return a 404 and inform the user if the job is already
@@ -276,9 +315,13 @@ public class JobController {
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteJob(
-        @PathVariable UUID id
+        @PathVariable UUID id,
+        @AuthenticationPrincipal Jwt jwt
     ) {
-        jobService.deleteJob(id);
+        UUID memberId = UUID.fromString(
+            jwt.getSubject()
+        );
+        jobService.deleteJobForMember(id, memberId);
     }
 
 }

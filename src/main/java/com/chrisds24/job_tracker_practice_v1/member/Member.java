@@ -1,5 +1,7 @@
 package com.chrisds24.job_tracker_practice_v1.member;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 import org.hibernate.annotations.Generated;
@@ -33,8 +35,16 @@ public class Member {
 
     // This represents the hashed password from the database
     // IMPORTANT: DO NOT expose this field in DTOs
-    @Column(nullable = false)
+    @Column(name = "password_hash", nullable = false)
     private String passwordHash;
+
+    // Use type TEXT[] in PostgreSQL
+    // NOTE: nullable = false prevents a SQL NULL value, but doesn't prevent
+    //   an empty array. So requiring every Member to have at least one role
+    //   should be enforced in signup logic.
+    // There's no need to use @JdbcTypeCode(SqlTypes.JSON) here
+    @Column(columnDefinition = "text[]", nullable = false)
+    private List<String> roles = new ArrayList<>();
 
     // When Hibernate loads a Member from the database, Hibernate populates the
     //   collection appropriately. The new ArrayList<>() initialization is
@@ -57,19 +67,23 @@ public class Member {
     public Member(
         String name,
         String email,
-        String passwordHash
+        String passwordHash,
+        List<String> roles
     ) {
         this.name = name;
         this.email = email;
         this.passwordHash = passwordHash;
+        this.roles = roles;
     }
 
     public UUID getId() { return id; }
     public String getName() { return name; }
     public String getEmail() { return email; }
     public String getPasswordHash() { return passwordHash; }
+    public List<String> getRoles() { return roles; }
 
     public void setName(String name) { this.name = name; }
     public void setEmail(String email) { this.email = email; }
     public void setPasswordHash(String passwordHash) { this.passwordHash = passwordHash; }
+    public void setRoles(List<String> roles) { this.roles = roles; }
 }

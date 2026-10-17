@@ -8,15 +8,19 @@ import javax.crypto.spec.SecretKeySpec;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
+import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.security.web.SecurityFilterChain;
@@ -25,6 +29,11 @@ import org.springframework.transaction.annotation.RollbackOn;
 
 
 @Configuration
+@EnableMethodSecurity
+// - To enable using annotations on methods to do authorization checks
+//   -- Ex. @PreAuthorize, @PostAuthorize, @PreFilter, and @PostFilter
+//   -- Source: https://docs.spring.io/spring-security/reference/servlet/authorization/method-security.html
+//   -- Note that @Secured is now considered legacy 
 @EnableTransactionManagement(rollbackOn=RollbackOn.ALL_EXCEPTIONS)
 // - To rollback on all exceptions, not just runtime
 public class SecurityConfig {
@@ -62,22 +71,35 @@ public class SecurityConfig {
     // - However, I need to configure my own since my JWTs will have a
     //   "roles" attribute instead of "scope" and I need the authority prefix
     //   to be "ROLE_" instead of "SCOPE_".
+    //   -- ***** Role vs Scope:
+    //      + Role is something like USER vs ADMIN
+    //      + Scope is something like read only, write only, etc. permissions
     //
     // ***** Example JWT:
         // {
         //     "sub": "member-uuid",
-        //     "roles": ["USER"],
+        //     "roles": ["USER", "ADMIN"],
         //     "iat": 1792000000,
         //     "exp": 1792003600
         // }
     // - IMPORTANT: The JWT should contain the expected claims above
+    //   -- sub: subject -> identifies the member (UUID)
+    //   -- iss: issuer —> identifies my backend (since it's the issuer in
+    //      my use case, not an external authorization server)
+    //      + I DIDN'T ACTUALLY INCLUDE THIS, but just putting the explanation
+    //        here
+    //   -- iat: issued at —> when the JWT was generated
+    //   -- exp: expiration —> when the JWT expires
+    // - I can also add my own attributes such as roles
+    // - ***** KEEP IN MIND THAT roles embedded in existing JWTs can become
+    //   outdated when permissions change
     // - Spring Security will create authorities such as:
-    //      new SimpleGrantedAuthority("ROLE_USER");
+    //          new SimpleGrantedAuthority("ROLE_USER");
     //   -- The JWTs must contain role names without the ROLE_ prefix.
     //      Otherwise, we'll end up with ROLE_ROLE_USER
     //   -- ***** This means that when I store roles in my database, they
     //      shouldn't have the ROLE_ prefix
-    //      + This is appropriate since having the ROLE_ prefix is Spring
+    //      + This is appropriate since having the ROLE_ prefix is a Spring
     //        Security convention for representing role-based authorities
     //      + NOTE: In MemberUserDetails, the getAuthorities() method should
     //        return authorities with a ROLE_ prefix
@@ -92,29 +114,40 @@ public class SecurityConfig {
         return jwtAuthenticationConverter;
     }
     
+    // ***** IMPORTANT: I'm using Spring Security's OAuth 2.0 Resource Server
+    //   features for JWT validation, but NOT to implement an OAuth 2.0 flow.
+    //
     // By default, Spring Boot auto-configures and enables features like form
     //   login.
     // - However, defining your custom SecurityFilterChain @Bean overrides the
     //   default settings so there's no need to explicitly disable it
-    // - Other defaults that I don't want:
+    // - Other defaults that I should disable:
     //   -- CSRF protection, Basic Authentication, logout form, sessions
-    // - I also want SessionCreationPolicy.STATELESS since Spring Security
-    //   uses sessions by default
+    // - I should use SessionCreationPolicy.STATELESS since Spring Security
+    //   uses sessions by default, which I want to disable
     //   -- With STATELESS, Spring Security doesn't use an HTTP session
     //      to persist the SecurityContext between requests
     //
     // Since I'm building a stateless REST API, CSRF protection doesn't make
     //   sense for my use case
-    // Customizer.withDefaults() tells simply Spring Security to use the
-    //   default JWT configuration  
-    // NOTE: login and signup endpoints shouldn't require authentication, which
-    //   is why I'm using permitAll here
     //
-    // IMPORTANT: I'm using Spring Security's Resource Server features for JWT
-    //   validation, but NOT to implement an OAuth 2.0 flow.
+    // login and signup endpoints shouldn't require authentication, which
+    //   is why I'm using permitAll here
     //
     // Refer to the notes in jwtSecretKey below for info on how this bean
     //   knows that it should use the jwtAuthenticationConverter bean above
+    //
+    // IMPORTANT: Rule ordering matter here since Spring Security evaluates
+    //   authorization rules in their declared order and uses the first
+    //   matching rule
+    // - So don't put .anyRequest().authenticated() as the first rule
+    //
+    // IMPORTANT: The Authentication in the SecurityContextHolder is a
+    //   JwtAuthenticationToken, which has a Jwt object as the principal
+    //
+    // Sources for editing SecurityFilterChain:
+    // - https://docs.spring.io/spring-security/reference/servlet/configuration/java.html
+    // - https://docs.spring.io/spring-security/reference/servlet/authorization/authorize-http-requests.html
     //
     // TODO: CORS
     @Bean
@@ -128,7 +161,48 @@ public class SecurityConfig {
                 .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
             )
             .authorizeHttpRequests(authorize -> authorize
-                .requestMatchers("/auth/login", "/auth/signup").permitAll()
+                // Public endpoints
+                .requestMatchers(
+                    HttpMethod.POST,
+                    "/auth/login",
+                    "/auth/signup"
+                ).permitAll()
+
+                // Admin endpoints
+                // - I won't actually have admin endpoints for this practice
+                //   project, but I'll leave this here to demonstrate
+                .requestMatchers("/admin/**")
+                    .hasRole("ADMIN")
+                
+                // We use a wildcard pattern here so that anything in the
+                //   /job and /member endpoint will require a USER role
+                // - Notice how the base endpoint (Ex. just /jobs) needs
+                //   to be explicitly added here
+                //
+                // All users (regular users and admins) have role USER by
+                //   default (based on my signup implementation)
+                //
+                // Here, we can also specify HttpMethod.GET, etc., but I won't
+                //   specify HttpMethod here since I'll apply this rule to any
+                //   method just to keep things simple
+                //
+                // There's also:  .hasAnyRole("USER", "ADMIN")
+                //
+                // Note that hasRole/hasAnyRole implies that the request must
+                //   be authenticated
+                .requestMatchers(
+                    // HttpMethod.GET,
+                    "/jobs",
+                    "/jobs/**",
+                    "/members",
+                    "/members/**"
+                ).hasRole("USER")
+
+                // Require any other request that doesn't match anything above
+                //   to be authenticated
+                //
+                // There's also:  .anyRequest().denyAll()
+                // - This one rejects any request not explicitly allowed
                 .anyRequest().authenticated()
             )
             .oauth2ResourceServer(
@@ -143,8 +217,8 @@ public class SecurityConfig {
 
     // Used below for the jwtDecoder
     //
-    // NOTE: How does jwtDecoder know to use this bean instead of another
-    //   SecretKey bean?
+    // ***** How does jwtDecoder know that it should use this bean instead of
+    //   another SecretKey bean?
     // - Spring first looks for a bean matching the parameter's type (in my
     //   case, SecretKey). If there's only one matching bean, Spring doesn't
     //   require that parameter's name to match the bean's name
@@ -162,7 +236,7 @@ public class SecurityConfig {
     //   variables, command-line arguments, etc.
     //
     // Java's SecretKeySpec constructor doesn't enforce the HS256 minimum key
-    // length, which is why we have the keyBytes length check below
+    //   length, which is why we have the keyBytes length check below
     @Bean
     public SecretKey jwtSecretKey(
         @Value("${jwt.secret}") String secretString
@@ -188,33 +262,21 @@ public class SecurityConfig {
     //   256 bits, which the frontend and backend apps can both use (KEEP IT
     //   OUTSIDE OF SOURCE CODE !!!)
     //   -- To generate one, use this in terminal:    openssl rand -base64 32
-    //
-    // What are issuer-uri, jwk-set-uri, withIssuerLocation(), etc.?
-    // - They're simply ways for your resource server to discover the public
-    //   keys needed to verify JWTs
-    // - This is used when using a separate authentication provider instead of
-    //   having your Spring Boot app generate the JWTs
-    // - iss claim in JWT
-    //   -- Don't need this
-    // - JWK (JSON Web Key): JSON representation of a cryptographic key
-    //   -- Don't need this
-    // - .withIssuerLocation(): Same idea as setting issuer-uri
     // 
     // For NimbusJwtDecoder.withSecretKey(), Spring Security 6.5 defaults
     //   to HS256.
     // - No need to add    .macAlgorithm(MacAlgorithm.HS256)
-    //   -- .macAlgorithm(MacAlgorithm.HS256) tells NimbusJwtDecoder which
-    //      HMAC signing algorithm to trust when verifying incoming JWTs
+    //   ...which tells NimbusJwtDecoder which HMAC signing algorithm to
+    //   trust when verifying incoming JWTs
     // - Note that Spring Security docs use .jwsAlgorithm(), which is used for
     //   a JWKS-based decoder
     //
     // For now, I won't be adding an iss claim to my JWTs so I won't have this
     //   line that Spring Security docs keep showing:
     //      jwtDecoder.setJwtValidator(JwtValidators.createDefaultWithIssuer(this.issuer));
-    // - Therefore, I won't have issuer validation (to confirm that claims come
-    //   from the expected issuer)
-    // - But I'll have signature verification, which simply confirms that the
-    //   JWT has been signed with the secret key
+    // - Therefore, I won't have issuer validation. But I'll still have
+    //   signature verification, which simply confirms that the JWT has been
+    //   signed with the secret key
     //
     // SecretKey vs SecretKeySpec
     // - Neither are provided by Spring Security. They come from javax.crypto
@@ -229,11 +291,21 @@ public class SecurityConfig {
             .withSecretKey(jwtSecretKey)
             .macAlgorithm(MacAlgorithm.HS256)
             .build();
+    }
 
-        // I won't be adding an iss claim to my JWTs so I won't need this line
-        // decoder.setJwtValidator(
-        //     JwtValidators.createDefaultWithIssuer("qu1cksave-backend")
-        // );
+    // IMPORTANT: This NimbusJwtEncoder builder is only available starting
+    //   Spring Security 7
+    // This is simply a JwtEncoder that uses the same secret key as the
+    //   decoder to sign tokens
+    // https://docs.spring.io/spring-security/reference/api/java/org/springframework/security/oauth2/jwt/JwtEncoder.html
+    // https://docs.spring.io/spring-security/reference/api/java/org/springframework/security/oauth2/jwt/NimbusJwtEncoder.html
+    // https://docs.spring.io/spring-security/reference/api/java/org/springframework/security/oauth2/jwt/NimbusJwtEncoder.SecretKeyJwtEncoderBuilder.html
+    @Bean
+    public JwtEncoder jwtEncoder(SecretKey jwtSecretKey) {
+        return NimbusJwtEncoder
+            .withSecretKey(jwtSecretKey)
+            .algorithm(MacAlgorithm.HS256)
+            .build();
     }
 }
 
@@ -317,16 +389,19 @@ AuthorizationFilter
     |
 Controller
 
-What to NOT implement:
-- issuer-uri
-  -- Since I'm not using an external authorization server
+
+***** I DON'T NEED TO IMPLEMENT THESE
+What are issuer-uri, jwk-set-uri, withIssuerLocation(), audiences, etc.?
+- They're simply ways for your resource server to discover the public
+    keys needed to verify JWTs
+- This is used when using a separate authentication provider instead of
+    having your Spring Boot app generate the JWTs
+- iss claim in JWT
+    -- Don't need this
+- JWK (JSON Web Key): JSON representation of a cryptographic key
+    -- Don't need this
+- .withIssuerLocation(): Same idea as setting issuer-uri
 - audiences
   -- "Boot also has the audiences property for validating the aud claim;
      this is who the JWT was sent to"
-  -- Could be useful later, but not crucial for now
-- jwk-set-uri
-
-Source for .macAlgorithm()
-- https://docs.spring.io/spring-security/reference/6.5/api/java/org/springframework/security/oauth2/jwt/NimbusJwtDecoder.SecretKeyJwtDecoderBuilder.html#macAlgorithm(org.springframework.security.oauth2.jose.jws.MacAlgorithm)
-
 */
