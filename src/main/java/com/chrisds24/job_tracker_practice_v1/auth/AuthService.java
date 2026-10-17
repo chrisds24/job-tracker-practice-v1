@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.JwsHeader;
 import org.springframework.security.oauth2.jwt.JwtClaimsSet;
@@ -30,15 +31,18 @@ public class AuthService {
     private final MemberRepository memberRepository;
     private final AuthenticationManager authenticationManager;
     private final JwtEncoder jwtEncoder;
+    private final PasswordEncoder passwordEncoder;
 
     public AuthService(
         @Autowired MemberRepository memberRepository,
         @Autowired AuthenticationManager authenticationManager,
-        @Autowired JwtEncoder jwtEncoder
+        @Autowired JwtEncoder jwtEncoder,
+        @Autowired PasswordEncoder passwordEncoder
     ) {
         this.memberRepository = memberRepository;
         this.authenticationManager = authenticationManager;
         this.jwtEncoder = jwtEncoder;
+        this.passwordEncoder = passwordEncoder;
     }
 
     @Transactional
@@ -60,20 +64,17 @@ public class AuthService {
             );
         }
 
-        // TODO: Use the PasswordEncoder bean later
-        String fakePasswordHash = newUser.password();
-
         // By default, all members have a USER role
         memberRepository.save(MemberMapper.toEntity(
             newUser.name(),
             newUser.email(),
-            fakePasswordHash,
+            passwordEncoder.encode(newUser.password()),
             new ArrayList<>(List.of("USER"))
         ));
     }
 
     // SEE EXPLANATION BELOW
-    @Transactional
+    @Transactional(readOnly = true)
     public LoginResponseDto login(LoginRequestDto credentials) {
         // Authenticate with AuthenticationManager
         // - This throws AuthenticationException if unsuccessful

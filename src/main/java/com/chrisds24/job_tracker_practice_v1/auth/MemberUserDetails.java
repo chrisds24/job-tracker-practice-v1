@@ -24,7 +24,7 @@ public class MemberUserDetails implements UserDetails {
     // private String username;
     // private String password;
 
-    private Member member;
+    private final Member member;
 
     public MemberUserDetails(Member member) {
         this.member = member;

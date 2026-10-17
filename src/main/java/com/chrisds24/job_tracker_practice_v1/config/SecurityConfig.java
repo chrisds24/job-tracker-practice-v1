@@ -259,8 +259,8 @@ public class SecurityConfig {
     //   -- Basically, it uses a single shared secret key for both
     //      generating/signing and validating the token
     // - I can just generate a cryptographically random secret with at least
-    //   256 bits, which the frontend and backend apps can both use (KEEP IT
-    //   OUTSIDE OF SOURCE CODE !!!)
+    //   256 bits, which only the backend app should use (KEEP IT
+    //   OUTSIDE OF SOURCE CODE !!! + don't give it to the frontend code)
     //   -- To generate one, use this in terminal:    openssl rand -base64 32
     // 
     // For NimbusJwtDecoder.withSecretKey(), Spring Security 6.5 defaults
